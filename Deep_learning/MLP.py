@@ -88,7 +88,7 @@ class MLP(nn.Module):
 
 dataset = QM7_data()
 
-trainloader = DataLoader(dataset, batch_size=1433*4, shuffle=False)
+trainloader = DataLoader(dataset, batch_size=1433*4, shuffle=True)
 testloader = DataLoader(QM7_data(mode = 'test'), batch_size=1433, shuffle=False)
 
 import torch.nn.functional as F
@@ -98,7 +98,7 @@ mlp = MLP().to(device)
 
 
 optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-2)
-for epoch in range(500):
+for epoch in range(5000):
     current_loss = 0.0
 
     for i, data in enumerate(trainloader):

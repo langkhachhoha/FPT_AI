@@ -52,7 +52,7 @@ class QM7_data:
 
 dataset = QM7_data()
 
-trainloader = DataLoader(dataset, batch_size=256, shuffle=False)
+trainloader = DataLoader(dataset, batch_size=256, shuffle=True)
 testloader = DataLoader(QM7_data(mode = 'test'), batch_size=1433, shuffle=False)
 
 
