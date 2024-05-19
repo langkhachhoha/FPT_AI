@@ -13,7 +13,7 @@ import os
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-qm7 = scipy.io.loadmat('./Data/qm7.mat')
+qm7 = scipy.io.loadmat('../Data/qm7.mat')
 X,T,P,Z,R = qm7['X'], qm7['T'], qm7['P'], qm7['Z'], qm7['R'] 
 y = np.transpose(qm7['T']).reshape((7165,))
 y = y/2000 
@@ -52,7 +52,7 @@ class QM7_data:
 
 dataset = QM7_data()
 
-trainloader = DataLoader(dataset, batch_size=512, shuffle=True)
+trainloader = DataLoader(dataset, batch_size=256, shuffle=True)
 testloader = DataLoader(QM7_data(mode = 'test'), batch_size=1433, shuffle=False)
 
 
@@ -91,10 +91,14 @@ class Model(nn.Module):
 
 import torch.nn.functional as F
 loss_function = F.mse_loss
+loss_2 = F.l1_loss 
 
 cnn = Model().to(device)
+best = 1e10 
+best_mae = 1e10 
 
 optimizer = torch.optim.Adam(cnn.parameters(), lr=1e-2)
+cnt = 0
 for epoch in range(5000):
     current_loss = 0.0
 
@@ -112,14 +116,24 @@ for epoch in range(5000):
         current_loss += loss.item()
 
     print(f'Epoch {epoch+1} - Loss {current_loss/(i+1)}')
-    torch.save(cnn.state_dict(), os.path.join('cnn.pt'))
     for data in testloader:
         inputs, targets = data
         targets = targets.view(-1,1)
         outputs = cnn(inputs)
-    print(loss_function(outputs, targets)**0.5)
+        print(loss_function(outputs, targets)**0.5 * 2000)
+    print(loss_2(outputs, targets)*2000)
+    print(cnt)
+    if loss_function(outputs, targets)**0.5 * 2000 < best:
+        best = loss_function(outputs, targets)**0.5 * 2000
+        best_mae = loss_2(outputs, targets)*2000
+        torch.save(cnn.state_dict(), os.path.join('mlp.pt'))
+        cnt = 0
+    else:
+        cnt += 1 
+    if cnt == 200:
+        break 
 
-
+print(best, best_mae)
 print("Training has completed")
     
 

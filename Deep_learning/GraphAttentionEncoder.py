@@ -44,7 +44,6 @@ class MultiHeadAttention(nn.Module):
         self.W_query = nn.Parameter(torch.Tensor(n_heads, input_dim, key_dim))
         self.W_key = nn.Parameter(torch.Tensor(n_heads, input_dim, key_dim))
         self.W_val = nn.Parameter(torch.Tensor(n_heads, input_dim, val_dim))
-
         self.W_out = nn.Parameter(torch.Tensor(n_heads, val_dim, embed_dim))
 
         self.init_parameters()
@@ -220,10 +219,20 @@ import os
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-qm7 = scipy.io.loadmat('./Data/qm7.mat')
+qm7 = scipy.io.loadmat('../Data/qm7.mat')
 X,T,P,Z,R = qm7['X'], qm7['T'], qm7['P'], qm7['Z'], qm7['R'] 
 y = np.transpose(qm7['T']).reshape((7165,))
 y = y/2000 
+
+Mask = np.ones((X.shape[0], X.shape[1], 64))
+for id, molecue in enumerate(X):
+    num_atoms = 0
+    for i in range(23):
+        if (molecue[i][i] == 0):
+            break 
+        num_atoms += 1
+    Mask[id][num_atoms:] = 0
+
 
 
 
@@ -231,20 +240,24 @@ index = 0
 test_X = X[P[index]]
 test_y = y[P[index]]
 test_R = R[P[index]]
+test_mask = Mask[P[index]]
+
 P_train = np.stack(tuple(P[i] for i in range(5) if i != index), axis = 0)
 
 
 class QM7_data:
-    def __init__(self, X = X, y = y, R = R, scale_data=True, mode = 'train'):
+    def __init__(self, X = X, y = y, R = R, mask = Mask, scale_data=True, mode = 'train'):
         if mode == "train":
             P_train = np.stack(tuple(P[i] for i in range(5) if i != index), axis = 0)
             self.X = np.concatenate(tuple(X[train] for train in P_train), axis = 0)
             self.y = np.concatenate(tuple(y[train] for train in P_train), axis = 0)
             self.R = np.concatenate(tuple(R[train] for train in P_train), axis = 0)
+            self.M = np.concatenate(tuple(mask[train] for train in P_train), axis = 0)
         if mode == 'test':
             self.X = test_X
             self.y = test_y 
             self.R = test_R 
+            self.M = test_mask 
     
     def __len__(self):
         return len(self.X)
@@ -260,7 +273,7 @@ class QM7_data:
         # print(self.X[idx][0][0])
         b = np.array( [self.X[idx][i][i] for i in range(self.X[idx].shape[0])] ).reshape(-1,1)
         c = np.concatenate((self.R[idx], b), axis = 1)
-        return torch.tensor(c, device=device, dtype = torch.float32),torch.tensor(self.augumented(self.X[idx]), device=device, dtype = torch.float32), torch.tensor(self.y[idx], device=device)
+        return torch.tensor(self.M[idx], device = device, dtype = torch.float32), torch.tensor(c, device=device, dtype = torch.float32),torch.tensor(self.X[idx], device=device, dtype = torch.float32), torch.tensor(self.y[idx], device=device)
     
 
 
@@ -278,19 +291,21 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.encoder = GraphAttentionEncoder(8, 64, 3, 4)
         self.layers = nn.Sequential (
-        nn.Conv2d(4, 16, 5, padding = 5//2),
+        nn.Conv2d(1, 8, 3, padding = 3//2),
+        nn.ReLU(),
+        nn.MaxPool2d(2),
+        nn.BatchNorm2d(8),
+        nn.Conv2d(8, 16, 3, padding = 3//2),
         nn.ReLU(),
         nn.MaxPool2d(2),
         nn.BatchNorm2d(16),
-        nn.Conv2d(16, 32, 5, padding = 5//2),
-        nn.ReLU(),
-        nn.MaxPool2d(2),
-        nn.BatchNorm2d(32),
-        nn.Conv2d(32, 32, 3, padding = 3//2),
-        nn.MaxPool2d(2),
+        # nn.Conv2d(32, 32, 3, padding = 3//2),
+        # nn.MaxPool2d(2),
         nn.Flatten()
         )
         self.MLP = nn.Sequential (
+        nn.Linear(1680, 640),
+        nn.ReLU(),
         nn.Linear(640, 256),
         nn.ReLU(),
         nn.Linear(256, 64),
@@ -302,13 +317,16 @@ class Model(nn.Module):
         nn.Linear(16, 1)
         )
 
-    def forward(self, x, y):
+    def forward(self, mask, x, y):
 
         output = self.encoder(x)
+        output = output * mask 
+        
+        # output = output.expand(-1,4,-1,-1)
+        output = torch.concat((output, y), dim = 2)
         output = output.unsqueeze(1)
-        output = output.expand(-1,4,-1,-1)
-        output = torch.concat((y, output), dim = 3)
         output = self.layers(output)
+        # print(output.shape)
         output = self.MLP(output)
 
         return output 
@@ -317,16 +335,21 @@ model = Model().to(device)
 import torch.nn.functional as F
 loss_function = F.mse_loss
 
+loss_2 = F.l1_loss 
+
+best = 1e10 
+best_mae = 1e10 
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+cnt = 0 
 for epoch in range(5000):
     current_loss = 0.0
 
     for i, data in enumerate(trainloader):
-        x, y, targets = data
+        mask, x, y, targets = data
         targets = targets.view(-1,1)
 
-        outputs = model(x,y)
+        outputs = model(mask, x,y)
         loss = loss_function(outputs, targets)
 
         loss.backward()
@@ -338,11 +361,23 @@ for epoch in range(5000):
     print(f'Epoch {epoch+1} - Loss {current_loss/(i+1)}')
     torch.save(model.state_dict(), os.path.join('gnn.pt'))
     for data in testloader:
-        x,y, targets = data
+        mask, x,y, targets = data
         targets = targets.view(-1,1)
-        outputs = model(x,y)
-    print(loss_function(outputs, targets)**0.5)
+        outputs = model(mask, x,y)
+    print(loss_function(outputs, targets)**0.5 * 2000)
+    print(loss_2(outputs, targets)*2000)
+    print(cnt)
+    if loss_function(outputs, targets)**0.5 * 2000 < best:
+        best = loss_function(outputs, targets)**0.5 * 2000
+        best_mae = loss_2(outputs, targets)*2000
+        torch.save(model.state_dict(), os.path.join('mlp.pt'))
+        cnt = 0
+    else:
+        cnt += 1 
+    if cnt == 200:
+        break 
 
+print(best, best_mae)
 print("Training has completed")
     
 

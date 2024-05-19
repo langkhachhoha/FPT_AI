@@ -72,6 +72,7 @@ class MLP(nn.Module):
         super().__init__()
         self.layers = nn.Sequential (
             nn.Linear(input_size, 256),
+            # nn.Linear(input_size, 1),
             nn.ReLU(),
             nn.Linear(256, 64),
             nn.ReLU(),
@@ -88,16 +89,19 @@ class MLP(nn.Module):
 
 dataset = QM7_data()
 
-trainloader = DataLoader(dataset, batch_size=1433*4, shuffle=True)
+trainloader = DataLoader(dataset, batch_size=256, shuffle=True)
 testloader = DataLoader(QM7_data(mode = 'test'), batch_size=1433, shuffle=False)
 
 import torch.nn.functional as F
 loss_function = F.mse_loss
-
+loss_2 = F.l1_loss
 mlp = MLP().to(device)
 
+best = 1e10 
+best_mae = 1e10 
 
 optimizer = torch.optim.Adam(mlp.parameters(), lr=1e-2)
+cnt = 0
 for epoch in range(5000):
     current_loss = 0.0
 
@@ -106,23 +110,36 @@ for epoch in range(5000):
         targets = targets.view(-1,1)
 
         outputs = mlp(inputs)
+        # print(outputs)
         loss = loss_function(outputs, targets)
-
+        optimizer.zero_grad()
         loss.backward()
 
         optimizer.step()
-        optimizer.zero_grad()
+        
         current_loss += loss.item()
 
+    
     print(f'Epoch {epoch+1} - Loss {current_loss/(i+1)}')
-    torch.save(mlp.state_dict(), os.path.join('mlp.pt'))
     for data in testloader:
         inputs, targets = data
         targets = targets.view(-1,1)
         outputs = mlp(inputs)
-    print(loss_function(outputs, targets)**0.5)
+    print(loss_function(outputs, targets)**0.5 * 2000)
+    print(loss_2(outputs, targets)*2000)
+    print(cnt)
+    if loss_function(outputs, targets)**0.5 * 2000 < best:
+        best = loss_function(outputs, targets)**0.5 * 2000
+        best_mae = loss_2(outputs, targets)*2000
+        torch.save(mlp.state_dict(), os.path.join('mlp.pt'))
+        cnt = 0
+    else:
+        cnt += 1 
+    if cnt == 200:
+        break 
 
 
+print(best, best_mae)
 print("Training has completed")
 
 
