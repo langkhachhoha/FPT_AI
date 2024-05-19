@@ -319,7 +319,7 @@ loss_function = F.mse_loss
 
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-for epoch in range(1000):
+for epoch in range(5000):
     current_loss = 0.0
 
     for i, data in enumerate(trainloader):
@@ -336,7 +336,7 @@ for epoch in range(1000):
         current_loss += loss.item()
 
     print(f'Epoch {epoch+1} - Loss {current_loss/(i+1)}')
-    torch.save(model.state_dict(), os.path.join('cnn.pt'))
+    torch.save(model.state_dict(), os.path.join('gnn.pt'))
     for data in testloader:
         x,y, targets = data
         targets = targets.view(-1,1)

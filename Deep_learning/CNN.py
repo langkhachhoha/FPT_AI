@@ -95,7 +95,7 @@ loss_function = F.mse_loss
 cnn = Model().to(device)
 
 optimizer = torch.optim.Adam(cnn.parameters(), lr=1e-2)
-for epoch in range(1000):
+for epoch in range(5000):
     current_loss = 0.0
 
     for i, data in enumerate(trainloader):
