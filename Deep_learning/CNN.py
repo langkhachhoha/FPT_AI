@@ -13,7 +13,7 @@ import os
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-qm7 = scipy.io.loadmat('../Data/qm7.mat')
+qm7 = scipy.io.loadmat('./Data/qm7.mat')
 X,T,P,Z,R = qm7['X'], qm7['T'], qm7['P'], qm7['Z'], qm7['R'] 
 y = np.transpose(qm7['T']).reshape((7165,))
 y = y/2000 
