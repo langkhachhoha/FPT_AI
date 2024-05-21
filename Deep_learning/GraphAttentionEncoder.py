@@ -55,14 +55,7 @@ class MultiHeadAttention(nn.Module):
             param.data.uniform_(-stdv, stdv) # đưa về lấy mâu trên phân phối đều trong khoảng -stdv, stdv
 
     def forward(self, q, h=None, mask=None):
-        """
 
-        :param q: queries (batch_size, n_query, input_dim)
-        :param h: data (batch_size, graph_size, input_dim)
-        :param mask: mask (batch_size, n_query, graph_size) or viewable as that (i.e. can be 2 dim if n_query == 1)
-        Mask should contain 1 if attention is not possible (i.e. mask is negative adjacency) mask = [1,0]
-        :return:
-        """
         if h is None:
             h = q  # compute self-attention
 
@@ -76,27 +69,21 @@ class MultiHeadAttention(nn.Module):
         hflat = h.contiguous().view(-1, input_dim)
         qflat = q.contiguous().view(-1, input_dim)
 
-        # last dimension can be different for keys and values
+
         shp = (self.n_heads, batch_size, graph_size, -1)
         shp_q = (self.n_heads, batch_size, n_query, -1)
 
-        # Calculate queries, (n_heads, n_query, graph_size, key/val_size)
         Q = torch.matmul(qflat, self.W_query).view(shp_q)
-        # Calculate keys and values (n_heads, batch_size, graph_size, key/val_size)
         K = torch.matmul(hflat, self.W_key).view(shp)
         V = torch.matmul(hflat, self.W_val).view(shp)
-
-        # Calculate compatibility (n_heads, batch_size, n_query, graph_size)
         compatibility = self.norm_factor * torch.matmul(Q, K.transpose(2, 3))
 
-        # Optionally apply mask to prevent attention
         if mask is not None:
             mask = mask.view(1, batch_size, n_query, graph_size).expand_as(compatibility)
             compatibility[mask] = -np.inf
 
         attn = torch.softmax(compatibility, dim=-1)
 
-        # If there are nodes with no neighbours then softmax returns nan so we fix them to 0
         if mask is not None:
             attnc = attn.clone()
             attnc[mask] = 0
@@ -125,7 +112,6 @@ class Normalization(nn.Module):
 
         self.normalizer = normalizer_class(embed_dim, affine=True)
 
-        # Normalization by default initializes affine parameters with bias 0 and weight unif(0,1) which is too large!
         # self.init_parameters()
 
     def init_parameters(self):
@@ -299,8 +285,6 @@ class Model(nn.Module):
         nn.ReLU(),
         nn.MaxPool2d(2),
         nn.BatchNorm2d(16),
-        # nn.Conv2d(32, 32, 3, padding = 3//2),
-        # nn.MaxPool2d(2),
         nn.Flatten()
         )
         self.MLP = nn.Sequential (
@@ -379,6 +363,6 @@ for epoch in range(5000):
 
 print(best, best_mae)
 print("Training has completed")
-    
+
 
      

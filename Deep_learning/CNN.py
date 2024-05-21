@@ -136,6 +136,7 @@ for epoch in range(5000):
 print(best, best_mae)
 print("Training has completed")
     
+# tensor(46.6356, device='cuda:0', grad_fn=<MulBackward0>) tensor(33.9211, device='cuda:0', grad_fn=<MulBackward0>)
 
 
 

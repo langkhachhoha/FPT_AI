@@ -72,7 +72,6 @@ class MLP(nn.Module):
         super().__init__()
         self.layers = nn.Sequential (
             nn.Linear(input_size, 256),
-            # nn.Linear(input_size, 1),
             nn.ReLU(),
             nn.Linear(256, 64),
             nn.ReLU(),
@@ -110,7 +109,6 @@ for epoch in range(5000):
         targets = targets.view(-1,1)
 
         outputs = mlp(inputs)
-        # print(outputs)
         loss = loss_function(outputs, targets)
         optimizer.zero_grad()
         loss.backward()
