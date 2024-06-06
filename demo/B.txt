@@ -1,1 +1,6 @@
+<<<<<<< HEAD
 Ha Minh Hieu dep trai vcl 
+=======
+How about here 
+I will change here 
+>>>>>>> b8999143bf8b09f56f33de4fc24242e216f58c04
